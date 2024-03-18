@@ -22,6 +22,7 @@ func ResolveEndpoint(c *gin.Context) {
 		return
 	}
 	json.Input = strings.ReplaceAll(json.Input, " ", "")
+	json.Input = " " + json.Input
 	var mathFunction = math_function.Constructor(json.Input, true)
 	value, err := mathFunction.ResolveExpression(json.VariableValues)
 	if err != nil {

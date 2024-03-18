@@ -92,18 +92,22 @@ func arithmeticFunction(a float64, fName string) float64 {
 
 func replaceBrackets(expression *string, variableValues map[string]float64, debug bool) bool {
 	//
-	r := regexp.MustCompile(`\W*\((?<inner>[^\(\)]+?)\)`)
+	r := regexp.MustCompile(`\W+\((?<inner>[^\(\)]+?)\)`)
 	regex := myregexp.MyRegexp{Regexp: *r}
 	matches := regex.FindAllStringSubmatch(*expression, -1)
 	if len(matches) > 0 {
 		var match = matches[0]
 		var inner = regex.ValueByGroupName(match, "inner")
-		fmt.Println("Inner ", inner)
-		var value, err = resolveExpression(&inner, variableValues, debug)
+		fmt.Println("Inner", inner)
+		var innerCopy = inner
+		var value, err = resolveExpression(&innerCopy, variableValues, debug)
 		if err != nil {
 			return false
 		}
-		*expression = strings.ReplaceAll(*expression, "("+inner+")", fmt.Sprint(value))
+		fmt.Println("Value", value)
+		var old string = "(" + inner + ")"
+		fmt.Println("Old", old)
+		*expression = strings.ReplaceAll(*expression, old, fmt.Sprint(value))
 		return true
 	}
 	return false
@@ -151,8 +155,9 @@ func resolveExpression(expression *string, variableValues map[string]float64, de
 		*expression = strings.ReplaceAll(*expression, variable, fmt.Sprint(value))
 	}
 	for {
-		_, err = strconv.ParseFloat(*expression, 64)
+		_, err = strconv.ParseFloat((*expression)[1:], 64)
 		if err == nil {
+			*expression = (*expression)[1:]
 			break
 		}
 
@@ -174,8 +179,6 @@ func resolveExpression(expression *string, variableValues map[string]float64, de
 		if replaceBinary(expression, []string{"\\+", "-"}) {
 			continue
 		}
-		err = errors.New("выражение составлено некорректно")
-		return
 	}
 	if debug {
 		fmt.Println(*expression)
@@ -203,22 +206,4 @@ func resolveExpression(expression *string, variableValues map[string]float64, de
 //                      KeyValuePair<char, float64?>(pair.Key, pair.Value - delta)).ToDictionary()
 //             )
 //          ) / (2 * delta);
-//     }
-//     bool replaceUnary( string expression, []string operators)
-//     {
-//         r := regexp.MustCompile("(?<operator>({string.Join("|", operators)}))(?<valueA>{numberChars})");
-//         var match = regex.Match(expression);
-//         if (match.Success)
-//         {
-//             expression = expression.Replace(
-//                 match.Value,
-//                     ArithmeticOperation(
-//                         strconv.ParseFloat(regex.ValueByGroupName(match, "valueA")),
-//                         regex.ValueByGroupName(match, "operator")
-//                     )
-//                 .ToString()
-//             );
-//             return true;
-//         }
-//         return false;
 //     }
