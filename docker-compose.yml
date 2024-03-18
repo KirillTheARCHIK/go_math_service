@@ -7,19 +7,19 @@ services:
       context: back
       dockerfile: ./Dockerfile
     ports:
-      - 3002:8080
+      - 4002:8080
     networks:
       - network1
     develop:
       watch:
         - action: rebuild
           path: ./back
-    volumes:
-      - goCacheAuth:/go/pkg/mod
-      - goCacheAuth:/root/.cache/go-build
+    # volumes:
+    #   - goCacheAuth:/go/pkg/mod
+    #   - goCacheAuth:/root/.cache/go-build
 
-volumes:
-  goCacheAuth:
+# volumes:
+# goCacheAuth:
 
 networks:
   network1:
