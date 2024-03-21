@@ -3,8 +3,10 @@ package math_function
 import (
 	"errors"
 	"fmt"
+	"go_math_service/src/extensions/mymath"
 	"go_math_service/src/extensions/myregexp"
 	"go_math_service/src/extensions/slice"
+	"maps"
 	"math"
 	"regexp"
 	"sort"
@@ -85,6 +87,14 @@ func arithmeticFunction(a float64, fName string) float64 {
 		{
 			return math.Cos(a)
 		}
+	case "fact":
+		{
+			return float64(mymath.Fact(int(a)))
+		}
+	case "exp":
+		{
+			return math.Exp(a)
+		}
 	default:
 		panic("Несуществующая математическая функция")
 	}
@@ -99,8 +109,7 @@ func replaceBrackets(expression *string, variableValues map[string]float64, debu
 		var match = matches[0]
 		var inner = regex.ValueByGroupName(match, "inner")
 		fmt.Println("Inner", inner)
-		var innerCopy = inner
-		var value, err = resolveExpression(&innerCopy, variableValues, debug)
+		var value, err = resolveExpression(inner, variableValues, debug)
 		if err != nil {
 			return false
 		}
@@ -147,43 +156,49 @@ func (mathFunction *MathFunction) ResolveExpression(variableValues map[string]fl
 		if variableValues[variable] == 0 {
 			variableValues[variable] = 0
 		}
+		if variable == "E" {
+			variableValues[variable] = math.E
+		}
+		if variable == "PI" {
+			variableValues[variable] = math.Pi
+		}
 	}
-	return resolveExpression(&mathFunction.input, variableValues, mathFunction.debug)
+	return resolveExpression(mathFunction.input, variableValues, mathFunction.debug)
 }
-func resolveExpression(expression *string, variableValues map[string]float64, debug bool) (value float64, err error) {
+func resolveExpression(expression string, variableValues map[string]float64, debug bool) (value float64, err error) {
 	for variable, value := range variableValues {
-		*expression = strings.ReplaceAll(*expression, variable, fmt.Sprint(value))
+		expression = strings.ReplaceAll(expression, variable, fmt.Sprint(value))
 	}
 	for {
-		_, err = strconv.ParseFloat((*expression)[1:], 64)
+		_, err = strconv.ParseFloat((expression)[1:], 64)
 		if err == nil {
-			*expression = (*expression)[1:]
+			expression = (expression)[1:]
 			break
 		}
 
 		if debug {
-			fmt.Println(*expression)
+			fmt.Println(expression)
 		}
-		if replaceBrackets(expression, variableValues, debug) {
+		if replaceBrackets(&expression, variableValues, debug) {
 			continue
 		}
-		if replaceFunction(expression, debug) {
+		if replaceFunction(&expression, debug) {
 			continue
 		}
-		if replaceBinary(expression, []string{"\\^"}) {
+		if replaceBinary(&expression, []string{"\\^"}) {
 			continue
 		}
-		if replaceBinary(expression, []string{"\\*", "/"}) {
+		if replaceBinary(&expression, []string{"\\*", "/"}) {
 			continue
 		}
-		if replaceBinary(expression, []string{"\\+", "-"}) {
+		if replaceBinary(&expression, []string{"\\+", "-"}) {
 			continue
 		}
 	}
 	if debug {
-		fmt.Println(*expression)
+		fmt.Println(expression)
 	}
-	parsed, err := strconv.ParseFloat(*expression, 64)
+	parsed, err := strconv.ParseFloat(expression, 64)
 	if err == nil {
 		return parsed, nil
 	}
@@ -191,19 +206,30 @@ func resolveExpression(expression *string, variableValues map[string]float64, de
 	return
 }
 
-//     public float64 GetDerivative(map[string]float64 variableValues, char axis)
-//     {
-//         var delta = 1e-8;
-//         return (
-//             ResolveExpression(variableValues.Select(
-//                 pair => pair.Key != axis ?
-//                     pair :
-//                      KeyValuePair<char, float64?>(pair.Key, pair.Value + delta)).ToDictionary()
-//             ) -
-//             ResolveExpression(variableValues.Select(
-//                 pair => pair.Key != axis ?
-//                     pair :
-//                      KeyValuePair<char, float64?>(pair.Key, pair.Value - delta)).ToDictionary()
-//             )
-//          ) / (2 * delta);
-//     }
+func (mathFunction *MathFunction) GetDerivative(variableValues map[string]float64, axis string) (value float64, err error) {
+	var delta = 1e-8
+	var vV1 = maps.Clone(variableValues)
+	vV1[axis] += delta
+	var vV2 = maps.Clone(variableValues)
+	vV2[axis] -= delta
+
+	if mathFunction.debug {
+		fmt.Println("vV1:", vV1, "vV2:", vV2)
+	}
+
+	f1, err := mathFunction.ResolveExpression(vV1)
+	if err != nil {
+		return
+	}
+	f2, err := mathFunction.ResolveExpression(vV2)
+	if err != nil {
+		return
+	}
+
+	if mathFunction.debug {
+		fmt.Println("f1:", f1, "f2:", f2)
+	}
+
+	value = (f1 - f2) / (2 * delta)
+	return
+}
