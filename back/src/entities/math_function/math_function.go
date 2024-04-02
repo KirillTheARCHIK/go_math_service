@@ -50,7 +50,8 @@ func getVariables(input string) []string {
 	return variables
 }
 
-var numberChars = `-?(\d+[\.\,])?\d+`
+var floatNumber = `-?(\d+[\.\,])?\d+`
+var numberChars = `-?` + floatNumber + `|\(` + floatNumber + `\)`
 
 func binaryArithmeticOperation(a, b float64, operation string) float64 {
 	switch operation {
@@ -105,25 +106,37 @@ func arithmeticFunction(a float64, fName string) float64 {
 
 func replaceBrackets(expression *string, variableValues map[string]float64, debug bool) bool {
 	//
-	r := regexp.MustCompile(`\W+\((?<inner>[^\(\)]+?)\)`)
+	// r := regexp.MustCompile(`\W+\((?<inner>[^\(\)]+?)\)`)
+	r := regexp.MustCompile(`\(\((?<inner>` + floatNumber + `)\)\)`)
 	regex := myregexp.MyRegexp{Regexp: *r}
 	matches := regex.FindAllStringSubmatch(*expression, -1)
 	if len(matches) > 0 {
 		var match = matches[0]
 		var inner = regex.ValueByGroupName(match, "inner")
-		if debug {
-			fmt.Println("Inner", inner)
-		}
-		var value, err = resolveExpression(inner, variableValues, debug)
-		if err != nil {
-			return false
-		}
-		var old string = "(" + inner + ")"
-		if debug {
-			fmt.Println("Value", value)
-			fmt.Println("Old", old)
-		}
-		*expression = strings.ReplaceAll(*expression, old, fmt.Sprint(value))
+		// if debug {
+		// 	fmt.Println("Inner", inner)
+		// }
+		// var value, err = resolveExpression(inner, variableValues, debug)
+		// if err != nil {
+		// 	return false
+		// }
+		// var old string = "(" + inner + ")"
+		// if debug {
+		// 	fmt.Println("Value", value)
+		// 	fmt.Println("Old", old)
+		// }
+		// *expression = strings.ReplaceAll(*expression, old, fmt.Sprint(value))
+		*expression = strings.ReplaceAll(*expression, "(("+inner+"))", "("+inner+")")
+		return true
+	}
+
+	r = regexp.MustCompile(`\d+-(?<right>(\d+[\.\,])?\d+)`)
+	regex = myregexp.MyRegexp{Regexp: *r}
+	matches = regex.FindAllStringSubmatch(*expression, -1)
+	if len(matches) > 0 {
+		var match = matches[0]
+		var right = regex.ValueByGroupName(match, "right")
+		*expression = strings.ReplaceAll(*expression, right, "("+right+")")
 		return true
 	}
 	return false
@@ -135,8 +148,17 @@ func replaceBinary(expression *string, operators []string) bool {
 	matches := regex.FindAllStringSubmatch(*expression, -1)
 	if len(matches) > 0 {
 		match := matches[0]
-		a, _ := strconv.ParseFloat(regex.ValueByGroupName(match, "valueA"), 64)
-		b, _ := strconv.ParseFloat(regex.ValueByGroupName(match, "valueB"), 64)
+		aStr := regex.ValueByGroupName(match, "valueA")
+		aStr = strings.ReplaceAll(aStr, "(", "")
+		aStr = strings.ReplaceAll(aStr, ")", "")
+		a, _ := strconv.ParseFloat(aStr, 64)
+		bStr := regex.ValueByGroupName(match, "valueB")
+		bStr = strings.ReplaceAll(bStr, "(", "")
+		bStr = strings.ReplaceAll(bStr, ")", "")
+		b, _ := strconv.ParseFloat(bStr, 64)
+
+		// fmt.Println(match[0], aStr, bStr)
+
 		operator := regex.ValueByGroupName(match, "operator")
 		*expression = strings.ReplaceAll(*expression, match[0], fmt.Sprint(binaryArithmeticOperation(a, b, operator)))
 		return true
@@ -238,7 +260,7 @@ func (mathFunction *MathFunction) GetDerivative(variableValues map[string]float6
 }
 
 func (mathFunction *MathFunction) FindRootsDividing(a, b, eps float64) (value []float64, err error) {
-	if len(slice.Filter(mathFunction.variables, func(e string) bool { return e != "E" && e != "PI" })) != 1 {
+	if len(mathFunction.variables) != 1 {
 		return nil, errors.New("уравнение должно содержать только одну переменную, кроме математических констант")
 	}
 	for iterations := 1; ; iterations++ {
@@ -258,12 +280,18 @@ func (mathFunction *MathFunction) FindRootsDividing(a, b, eps float64) (value []
 			return nil, err
 		}
 		//f(mid)
-		fmid, err := mathFunction.ResolveExpression(map[string]float64{mathFunction.variables[0]: mid}, true)
+		fmid, err := mathFunction.ResolveExpression(map[string]float64{mathFunction.variables[0]: mid}, false)
 		if err != nil {
 			return nil, err
 		}
 		if mathFunction.debug {
 			fmt.Println("fa =", fa, "fmid =", fmid)
+		}
+		if fa == 0 {
+			return []float64{fa}, nil
+		}
+		if fmid == 0 {
+			return []float64{fmid}, nil
 		}
 		if fa*fmid < 0 {
 			b = mid
@@ -278,16 +306,42 @@ func (mathFunction *MathFunction) FindRootsDividing(a, b, eps float64) (value []
 		if mathFunction.debug {
 			fmt.Println("fb =", fb)
 		}
+		if fb == 0 {
+			return []float64{fb}, nil
+		}
 		if fb*fmid < 0 {
 			a = mid
 			continue
 		}
 
-		if mid == 0 {
-			return []float64{0}, nil
-		}
-
 		return nil, errors.New("нет корней на данном отрезке")
 	}
+}
 
+func (mathFunction *MathFunction) FindRootsSimple(eps float64) (value []float64, err error) {
+	if len(mathFunction.variables) != 1 {
+		return nil, errors.New("уравнение должно содержать только одну переменную, кроме математических констант")
+	}
+	var fx float64 = 0
+	for iterations := 1; ; iterations++ {
+		if mathFunction.debug {
+			fmt.Println(fmt.Sprint(iterations)+")", fx)
+		}
+		newFx, err := mathFunction.ResolveExpression(map[string]float64{mathFunction.variables[0]: fx}, false)
+		if err != nil {
+			return nil, err
+		}
+		if math.Abs(newFx-fx) < eps {
+			fmt.Println("Iterations:", iterations)
+			return []float64{newFx}, nil
+		}
+		fx = newFx
+	}
+}
+
+func (mathFunction *MathFunction) FindRootsNewton(a, b, eps float64) (value []float64, err error) {
+	if len(mathFunction.variables) != 1 {
+		return nil, errors.New("уравнение должно содержать только одну переменную, кроме математических констант")
+	}
+	return nil, nil
 }

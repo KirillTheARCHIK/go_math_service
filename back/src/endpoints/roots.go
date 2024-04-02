@@ -29,11 +29,19 @@ func FindRootsEndpoint(c *gin.Context) {
 	json.Input = " " + json.Input
 	var mathFunction = math_function.Constructor(json.Input, true)
 
-	var value []float64
+	var roots []float64
 	switch json.Type {
 	case "dividing":
 		{
-			value, err = mathFunction.FindRootsDividing(json.A, json.B, json.Eps)
+			roots, err = mathFunction.FindRootsDividing(json.A, json.B, json.Eps)
+		}
+	case "simple":
+		{
+			roots, err = mathFunction.FindRootsSimple(json.Eps)
+		}
+	case "newton":
+		{
+			roots, err = mathFunction.FindRootsNewton(json.A, json.B, json.Eps)
 		}
 	}
 	if err != nil {
@@ -43,6 +51,6 @@ func FindRootsEndpoint(c *gin.Context) {
 		return
 	}
 	c.JSON(200, gin.H{
-		"value": value,
+		"roots": roots,
 	})
 }
