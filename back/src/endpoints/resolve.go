@@ -24,7 +24,7 @@ func ResolveEndpoint(c *gin.Context) {
 	json.Input = strings.ReplaceAll(json.Input, " ", "")
 	json.Input = " " + json.Input
 	var mathFunction = math_function.Constructor(json.Input, true)
-	value, err := mathFunction.ResolveExpression(json.VariableValues)
+	value, err := mathFunction.ResolveExpression(json.VariableValues, true)
 	if err != nil {
 		c.JSON(400, gin.H{
 			"err": err.Error(),

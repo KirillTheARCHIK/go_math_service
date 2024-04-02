@@ -40,6 +40,9 @@ func getVariables(input string) []string {
 
 	for _, match := range matches {
 		var variable = regex.ValueByGroupName(match, "variable")
+		if variable == "E" || variable == "PI" {
+			continue
+		}
 		variables = append(variables, variable)
 	}
 	sort.Strings(variables)
@@ -108,14 +111,18 @@ func replaceBrackets(expression *string, variableValues map[string]float64, debu
 	if len(matches) > 0 {
 		var match = matches[0]
 		var inner = regex.ValueByGroupName(match, "inner")
-		fmt.Println("Inner", inner)
+		if debug {
+			fmt.Println("Inner", inner)
+		}
 		var value, err = resolveExpression(inner, variableValues, debug)
 		if err != nil {
 			return false
 		}
-		fmt.Println("Value", value)
 		var old string = "(" + inner + ")"
-		fmt.Println("Old", old)
+		if debug {
+			fmt.Println("Value", value)
+			fmt.Println("Old", old)
+		}
 		*expression = strings.ReplaceAll(*expression, old, fmt.Sprint(value))
 		return true
 	}
@@ -151,24 +158,20 @@ func replaceFunction(expression *string, debug bool) bool {
 	return false
 }
 
-func (mathFunction *MathFunction) ResolveExpression(variableValues map[string]float64) (value float64, err error) {
+func (mathFunction *MathFunction) ResolveExpression(variableValues map[string]float64, debug bool) (value float64, err error) {
 	for _, variable := range mathFunction.variables {
 		if variableValues[variable] == 0 {
 			variableValues[variable] = 0
 		}
-		if variable == "E" {
-			variableValues[variable] = math.E
-		}
-		if variable == "PI" {
-			variableValues[variable] = math.Pi
-		}
 	}
-	return resolveExpression(mathFunction.input, variableValues, mathFunction.debug)
+	return resolveExpression(mathFunction.input, variableValues, debug)
 }
 func resolveExpression(expression string, variableValues map[string]float64, debug bool) (value float64, err error) {
 	for variable, value := range variableValues {
 		expression = strings.ReplaceAll(expression, variable, fmt.Sprint(value))
 	}
+	expression = strings.ReplaceAll(expression, "E", fmt.Sprint(math.E))
+	expression = strings.ReplaceAll(expression, "PI", fmt.Sprint(math.Pi))
 	for {
 		_, err = strconv.ParseFloat((expression)[1:], 64)
 		if err == nil {
@@ -206,7 +209,7 @@ func resolveExpression(expression string, variableValues map[string]float64, deb
 	return
 }
 
-func (mathFunction *MathFunction) GetDerivative(variableValues map[string]float64, axis string) (value float64, err error) {
+func (mathFunction *MathFunction) GetDerivative(variableValues map[string]float64, axis string, debug bool) (value float64, err error) {
 	var delta = 1e-8
 	var vV1 = maps.Clone(variableValues)
 	vV1[axis] += delta
@@ -217,11 +220,11 @@ func (mathFunction *MathFunction) GetDerivative(variableValues map[string]float6
 		fmt.Println("vV1:", vV1, "vV2:", vV2)
 	}
 
-	f1, err := mathFunction.ResolveExpression(vV1)
+	f1, err := mathFunction.ResolveExpression(vV1, debug)
 	if err != nil {
 		return
 	}
-	f2, err := mathFunction.ResolveExpression(vV2)
+	f2, err := mathFunction.ResolveExpression(vV2, debug)
 	if err != nil {
 		return
 	}
@@ -232,4 +235,59 @@ func (mathFunction *MathFunction) GetDerivative(variableValues map[string]float6
 
 	value = (f1 - f2) / (2 * delta)
 	return
+}
+
+func (mathFunction *MathFunction) FindRootsDividing(a, b, eps float64) (value []float64, err error) {
+	if len(slice.Filter(mathFunction.variables, func(e string) bool { return e != "E" && e != "PI" })) != 1 {
+		return nil, errors.New("уравнение должно содержать только одну переменную, кроме математических констант")
+	}
+	for iterations := 1; ; iterations++ {
+		var mid = (a + b) / 2
+		if math.Abs(b-a) < eps {
+			if mathFunction.debug {
+				fmt.Println("Iterations:", iterations)
+			}
+			return []float64{mid}, nil
+		}
+		if mathFunction.debug {
+			fmt.Println(fmt.Sprint(iterations)+")", "a =", a, "mid =", mid, "b =", b)
+		}
+		//f(a)
+		fa, err := mathFunction.ResolveExpression(map[string]float64{mathFunction.variables[0]: a}, false)
+		if err != nil {
+			return nil, err
+		}
+		//f(mid)
+		fmid, err := mathFunction.ResolveExpression(map[string]float64{mathFunction.variables[0]: mid}, true)
+		if err != nil {
+			return nil, err
+		}
+		if mathFunction.debug {
+			fmt.Println("fa =", fa, "fmid =", fmid)
+		}
+		if fa*fmid < 0 {
+			b = mid
+			continue
+		}
+
+		//f(b)
+		fb, err := mathFunction.ResolveExpression(map[string]float64{mathFunction.variables[0]: b}, false)
+		if err != nil {
+			return nil, err
+		}
+		if mathFunction.debug {
+			fmt.Println("fb =", fb)
+		}
+		if fb*fmid < 0 {
+			a = mid
+			continue
+		}
+
+		if mid == 0 {
+			return []float64{0}, nil
+		}
+
+		return nil, errors.New("нет корней на данном отрезке")
+	}
+
 }
