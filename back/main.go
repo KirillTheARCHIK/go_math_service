@@ -12,6 +12,7 @@ func main() {
 	server.POST("/derivative", endpoints.DerivativeEndpoint)
 	server.POST("/roots", endpoints.FindRootsEndpoint)
 	server.POST("/system", endpoints.SystemEndpoint)
+	server.POST("/gameTheory", endpoints.GameTheoryEndpoint)
 
 	server.Run() // listen and serve on 0.0.0.0:8080
 }
